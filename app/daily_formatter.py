@@ -1,4 +1,10 @@
-from datetime import datetime, timedelta
+import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+
+TIMEZONE = ZoneInfo(os.getenv("TIMEZONE", "America/New_York"))
+
 
 def format_duration(milliseconds):
     minutes = round(milliseconds / 60_000)
@@ -8,6 +14,7 @@ def format_duration(milliseconds):
 
 def format_time(timestamp):
     dt = datetime.fromisoformat(timestamp)
+    dt = dt.astimezone(TIMEZONE)
     return dt.strftime("%-I:%M %p")
 
 
@@ -55,10 +62,6 @@ def format_daily_update(data):
             + sleep_needed["need_from_sleep_debt_milli"]
             + sleep_needed["need_from_recent_strain_milli"]
             + sleep_needed["need_from_recent_nap_milli"]
-        )
-
-        bedtime = datetime.now().astimezone() + timedelta(
-            milliseconds=total_needed
         )
 
         lines.extend([
