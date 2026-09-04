@@ -1,0 +1,8 @@
+services:
+  whoop-daily-sms:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    entrypoint: ["python", "-m", "app.main"]
