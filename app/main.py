@@ -3,13 +3,13 @@ import time
 import sys
 
 from app.whoop_client import WhoopClient
-from app.twilio_client import TwilioClient
+from app.pushcut_client import PushcutClient
 from app.formatter import format_whoop_sms
 from app.daily_formatter import format_daily_update
 
 
 # Set to True when you want to actually send SMS messages.
-SEND_SMS = False
+SEND_MESSAGE = True
 
 
 logging.basicConfig(
@@ -22,10 +22,10 @@ MAX_ATTEMPTS = 6
 
 
 def deliver_message(message, label):
-    if SEND_SMS:
-        twilio = TwilioClient()
-        sid = twilio.send_sms(message)
-        logging.info("%s SMS sent: %s", label, sid)
+    if SEND_MESSAGE:
+        pushcut = PushcutClient()
+        pushcut.send_message(message)
+        logging.info("%s message sent via Pushcut", label)
     else:
         print()
         print("=" * 40)
@@ -34,7 +34,6 @@ def deliver_message(message, label):
         print(message)
         print("=" * 40)
         print()
-
 
 def get_ready_data(whoop):
     cycle = whoop.get_cycles()["records"][0]
