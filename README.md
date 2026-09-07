@@ -1,231 +1,48 @@
-# whoop-daily-sms
+# WHOOP Daily SMS
 
-A small Dockerized service that sends daily WHOOP metrics via SMS, designed for living without a smartphone.
+A small Python service that sends twice-daily WHOOP metric summaries to a dumb phone via iMessage.
 
-The service pulls data directly from the WHOOP API and sends two messages each day:
-
-* **6:30 AM** — sleep, recovery, HRV, resting heart rate, sleep stages, and sleep debt
-* **9:00 PM** — daily strain, activities/workouts, and recommended sleep duration
-
-Messages can also be printed to the console instead of being sent via Twilio for testing.
+The project is designed for a setup where the primary phone can remain at home while a dumb phone receives the important daily WHOOP information.
 
 ## Architecture
 
 ```text
-                  ┌──────────────┐
-                  │  WHOOP API   │
-                  └──────┬───────┘
-                         │
-                         ▼
-                ┌─────────────────┐
-                │ Python service  │
-                │                 │
-                │ WHOOP client    │
-                │ Formatters      │
-                │ Twilio client   │
-                └────────┬────────┘
-                         │
-                    ┌────┴────┐
-                    │         │
-                    ▼         ▼
-                 Twilio    Console
-                    │
-                    ▼
-                   SMS
+WHOOP API
+    ↓
+Python app on Raspberry Pi
+    ↓
+Pushcut HTTP API
+    ↓
+iPhone Pushcut Automation Server
+    ↓
+iOS Shortcut
+    ↓
+iMessage
+    ↓
+Dumb Phone 2 / OpenBubbles
 ```
 
-The application itself is intentionally small. Cron handles scheduling, Docker handles the runtime environment, and WHOOP/Twilio handle the external services.
+The Raspberry Pi runs the WHOOP API integration and sends the formatted messages to Pushcut. Pushcut triggers an iOS Shortcut on an iPhone, which sends the message via iMessage.
 
----
+## Messages
 
-## Requirements
+Two messages are sent each day.
 
-* Docker
-* Docker Compose
-* A WHOOP account
-* A WHOOP Developer application
-* A Twilio account and phone number
-* A host capable of running cron
+### Morning — 6:30 AM
 
-The intended deployment is a small always-on machine such as a Raspberry Pi.
+The morning update contains:
 
----
+* Recovery score
+* HRV
+* Resting heart rate
+* Total sleep
+* Sleep performance
+* Sleep debt
+* REM sleep
+* Deep sleep
+* Light sleep
 
-## 1. Clone the repository
-
-```bash
-git clone https://github.com/samcast1/whoop-daily-sms.git
-cd whoop-daily-sms
-```
-
----
-
-## 2. Create the WHOOP Developer App
-
-Create an application in the [WHOOP Developer Dashboard](https://developer.whoop.com/).
-
-Configure the application with:
-
-```text
-Redirect URI:
-http://localhost:1234
-```
-
-The application requires these scopes:
-
-```text
-offline
-read:recovery
-read:cycles
-read:sleep
-read:workout
-read:profile
-read:body_measurement
-```
-
-You will need the application's:
-
-* Client ID
-* Client Secret
-
----
-
-## 3. Configure environment variables
-
-Copy the example environment file:
-
-```bash
-cp .env.example .env
-```
-
-Populate `.env`:
-
-```env
-WHOOP_CLIENT_ID=your_whoop_client_id
-WHOOP_CLIENT_SECRET=your_whoop_client_secret
-WHOOP_REDIRECT_URI=http://localhost:1234
-
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_FROM_NUMBER=+1xxxxxxxxxx
-TWILIO_TO_NUMBER=+1xxxxxxxxxx
-```
-
-Do **not** commit `.env`. It is included in `.gitignore`.
-
----
-
-## 4. Authenticate with WHOOP
-
-The initial WHOOP authorization is handled separately from the Dockerized application using `setup/auth.py`.
-
-Install the Python dependencies locally:
-
-```bash
-pip install -r requirements.txt
-```
-
-Then run:
-
-```bash
-python setup/auth.py
-```
-
-This uses [`whoopy`](https://github.com/felixnext/whoopy) to perform the WHOOP OAuth flow.
-
-A browser window will open for WHOOP authorization. After approving access, the browser will redirect to:
-
-```text
-http://localhost:1234
-```
-
-The page itself does not need to load successfully. Copy the **entire URL from the browser's address bar** and paste it into the terminal when prompted.
-
-The authentication script saves the resulting OAuth token to:
-
-```text
-data/whoop_token.json
-```
-
-The token file is intentionally excluded from Git.
-
-The application later uses this persisted token and refreshes the access token when necessary.
-
-### Why authenticate outside Docker?
-
-The OAuth flow requires interactive browser authorization, so it is simplest to perform this one-time step directly on the machine where the repository is being configured.
-
-Once `data/whoop_token.json` exists, the normal application runs entirely inside Docker.
-
----
-
-## 5. Configure Twilio
-
-Create a Twilio account and obtain a Twilio phone number capable of sending SMS.
-
-You will need:
-
-```text
-Account SID
-Auth Token
-Twilio phone number
-Destination phone number
-```
-
-Put these values in `.env`.
-
-### US 10DLC registration
-
-If sending SMS from a US local 10-digit Twilio number to a US phone number, Twilio requires **A2P 10DLC registration**, including for individuals and hobby projects.
-
-For a personal project without an EIN, Twilio supports registering as a **Sole Proprietor**.
-
-The basic process is:
-
-1. Upgrade the Twilio account from trial.
-2. Purchase a US 10DLC phone number.
-3. Create/complete the Twilio compliance profile.
-4. Register the account as a Sole Proprietor Brand if applicable.
-5. Create the messaging Campaign.
-6. Associate the Twilio phone number with the Campaign.
-7. Wait for the registration to be approved.
-
-Twilio currently notes that campaign reviews can take approximately 10–15 days.
-
----
-
-## 6. Build the Docker image
-
-Build the application:
-
-```bash
-docker compose build
-```
-
-The Compose configuration:
-
-* builds the Python image
-* loads `.env`
-* mounts `./data` into `/app/data`
-* sets `app.main` as the container entrypoint
-
-This allows the job to be selected simply by passing `morning` or `evening`.
-
----
-
-## 7. Test the morning job
-
-Run:
-
-```bash
-docker compose run --rm whoop-daily-sms morning
-```
-
-The morning job checks whether the WHOOP cycle, sleep, and recovery data have been scored.
-
-If the data is not ready yet, it waits 10 minutes and tries again, up to six times.
-
-The resulting message looks approximately like:
+Example:
 
 ```text
 WHOOP — 2026-09-04
@@ -239,17 +56,18 @@ Deep: 1h 50m
 Light: 3h 44m
 ```
 
----
+The morning job checks whether the WHOOP data has been scored. If it isn't ready yet, it retries every 10 minutes for up to one hour.
 
-## 8. Test the evening job
+### Evening — 9:00 PM
 
-Run:
+The evening update contains:
 
-```bash
-docker compose run --rm whoop-daily-sms evening
-```
-
-The evening message contains the day's strain and recorded activities, along with recommended sleep duration.
+* Daily strain
+* Activities/workouts completed that day
+* Activity start time
+* Activity duration
+* Activity strain
+* Recommended sleep duration
 
 Example:
 
@@ -259,140 +77,131 @@ WHOOP — Daily Update
 Strain: 0.6
 
 Activities:
-• yard-work — 11:44 PM — 26m — 6.1 strain
+• yard-work — 7:44 PM — 26m — 6.1 strain
 
 Recommended sleep: 8h 51m
 ```
 
----
+Activity times are converted to the configured local timezone.
 
-## 9. Console vs. SMS mode
+## Requirements
 
-The application supports a simple test mode so messages can be verified without sending SMS.
+* Raspberry Pi or other always-on Linux host
+* Docker and Docker Compose
+* WHOOP Developer API application
+* iPhone with the Pushcut app
+* Pushcut Automation Server
+* iOS Shortcuts
+* Dumb Phone 2 (or another device capable of receiving the resulting iMessage)
 
-In `app/main.py`:
+The iPhone must remain powered on and connected to Wi-Fi.
 
-```python
-SEND_SMS = False
-```
+## Setup
 
-With this setting, the formatted message is printed to the console.
-
-Once Twilio is ready:
-
-```python
-SEND_SMS = True
-```
-
-The same commands will then send the message through Twilio instead.
-
-No other part of the scheduling configuration needs to change.
-
----
-
-# Deployment
-
-The application is designed to run as a short-lived Docker container rather than as a continuously running service.
-
-Cron starts a fresh container for each scheduled job.
-
-## Cron schedule
-
-Edit the host's crontab:
+### 1. Clone the repository
 
 ```bash
-crontab -e
+git clone https://github.com/samcast1/whoop-daily-sms.git
+cd whoop-daily-sms
 ```
 
-Add:
+### 2. Configure environment variables
 
-```cron
-30 6 * * * cd /path/to/whoop-daily-sms && docker compose run --rm whoop-daily-sms morning >> data/cron.log 2>&1
-0 21 * * * cd /path/to/whoop-daily-sms && docker compose run --rm whoop-daily-sms evening >> data/cron.log 2>&1
+Create `.env`:
+
+```env
+WHOOP_CLIENT_ID=
+WHOOP_CLIENT_SECRET=
+WHOOP_REDIRECT_URI=http://localhost:1234
+
+PUSHCUT_URL=
+
+TIMEZONE=America/New_York
 ```
 
-This produces:
+`PUSHCUT_URL` is the Pushcut Automation Server endpoint for the shortcut that sends the message.
 
-| Time    | Job                         |
-| ------- | --------------------------- |
-| 6:30 AM | Morning recovery/sleep SMS  |
-| 9:00 PM | Evening strain/activity SMS |
+### 3. Authenticate with WHOOP
 
-### Cron timezone
-
-Cron uses the **host system's timezone**.
-
-Make sure the deployment host is configured for the desired timezone:
+The one-time OAuth setup is handled outside the Docker container:
 
 ```bash
-timedatectl
+python setup/auth.py
 ```
 
-For example:
+The resulting token is saved to:
 
 ```text
-Time zone: America/New_York
+data/whoop_token.json
 ```
 
-If the host is configured correctly, the cron schedule above will run at 6:30 AM and 9:00 PM local time.
+This file contains OAuth credentials and is intentionally excluded from Git.
 
-This is particularly worth checking when deploying to a Raspberry Pi or another machine that may have been configured with UTC.
+The `data/` directory is mounted into the container so the token persists between container runs and WHOOP refresh tokens can be updated.
 
----
+### 4. Configure Pushcut
 
-## Cron logging
-
-The cron entries redirect output to:
+Create an iOS Shortcut named:
 
 ```text
-data/cron.log
+WHOOP Send
 ```
 
-View the log with:
+The Shortcut should contain:
 
-```bash
-tail -f data/cron.log
+```text
+Shortcut Input
+    ↓
+Send Message
 ```
 
-This captures both normal application output and errors:
+The **Message** field of `Send Message` must use the `Shortcut Input` variable.
 
-```cron
->> data/cron.log 2>&1
-```
+Configure Pushcut Automation Server to execute the shortcut.
 
----
+The Pushcut endpoint receives the formatted WHOOP message as shortcut input.
 
-# Updating the application
+### 5. Test the containers
 
-Pull the latest code:
-
-```bash
-git pull
-```
-
-Rebuild the image:
-
-```bash
-docker compose build
-```
-
-The next scheduled job will use the newly built image.
-
-You can also test immediately:
+Morning:
 
 ```bash
 docker compose run --rm whoop-daily-sms morning
 ```
 
-or:
+Evening:
 
 ```bash
 docker compose run --rm whoop-daily-sms evening
 ```
 
----
+These commands execute the complete pipeline and send the resulting message through Pushcut and iMessage.
 
-# Project Structure
+## Scheduled operation
+
+The Raspberry Pi uses cron to run the two daily jobs.
+
+Example:
+
+```cron
+30 6 * * * cd /opt/whoop-daily-sms && docker compose run --rm whoop-daily-sms morning >> data/cron.log 2>&1
+
+0 21 * * * cd /opt/whoop-daily-sms && docker compose run --rm whoop-daily-sms evening >> data/cron.log 2>&1
+```
+
+The host timezone should be configured for the desired local timezone:
+
+```bash
+timedatectl
+```
+
+Logs are written to:
+
+```text
+data/cron.log
+```
+
+## Project structure
 
 ```text
 whoop-daily-sms/
@@ -401,74 +210,60 @@ whoop-daily-sms/
 │   ├── daily_formatter.py
 │   ├── formatter.py
 │   ├── main.py
-│   ├── twilio_client.py
+│   ├── pushcut_client.py
 │   └── whoop_client.py
-│
 ├── data/
 │   └── .gitkeep
-│
 ├── setup/
 │   └── auth.py
-│
 ├── .env
 ├── .env.example
 ├── .gitignore
-├── compose.yml
 ├── Dockerfile
+├── compose.yml
+├── README.md
 └── requirements.txt
 ```
 
-### Components
+## Deployment
 
-**`setup/auth.py`**
+After pulling changes on the Raspberry Pi:
 
-Performs the one-time interactive WHOOP OAuth authorization using `whoopy` and persists the resulting token.
-
-**`app/whoop_client.py`**
-
-Communicates directly with the WHOOP API and handles access-token refresh.
-
-**`app/formatter.py`**
-
-Formats the morning recovery and sleep data into an SMS.
-
-**`app/daily_formatter.py`**
-
-Formats the evening strain and activity data.
-
-**`app/twilio_client.py`**
-
-Sends formatted messages through Twilio.
-
-**`app/main.py`**
-
-Dispatches the requested job:
-
-```text
-morning
-evening
+```bash
+cd /opt/whoop-daily-sms
+git pull
+docker compose build
 ```
 
-and handles the morning retry behavior.
+Then verify both jobs:
 
-**`compose.yml`**
+```bash
+docker compose run --rm whoop-daily-sms morning
+docker compose run --rm whoop-daily-sms evening
+```
 
-Provides the container runtime configuration and mounts the persistent WHOOP token into the container.
+Once verified, cron handles the scheduled execution.
 
----
+## Notes
 
-## Design Philosophy
+### WHOOP data availability
 
-This project deliberately keeps the architecture simple:
+WHOOP may not have finalized the previous night's sleep, recovery, or cycle data by 6:30 AM. The morning job therefore waits for all three datasets to have a `SCORED` state and retries every 10 minutes.
 
-* WHOOP is the source of truth.
-* No database is required.
-* No web server is required.
-* No continuously running application process is required.
-* Cron provides scheduling.
-* Docker provides isolation and reproducibility.
-* Twilio provides SMS delivery.
-* The application only formats and delivers the metrics needed.
-* No AI, recommendations, or additional processing are involved.
+### OAuth token persistence
 
-The end result is a tiny service that can quietly run on an always-on machine and provide the useful parts of WHOOP without requiring a smartphone.
+The WHOOP OAuth token is stored in `data/whoop_token.json`. Because `data/` is bind-mounted into the container, refreshed tokens persist across container runs.
+
+Do not commit the token or `.env` file to the repository.
+
+### Pushcut / iPhone
+
+The iPhone acts as the bridge between the Raspberry Pi and iMessage. It needs to remain powered on, connected to Wi-Fi, signed into iMessage, and running Pushcut Automation Server.
+
+Pushcut Automation Server requires the Pushcut app to be available in the foreground in order to process incoming automation requests.
+
+### No Twilio required
+
+This project originally used an SMS provider, but the current implementation uses Pushcut and iMessage instead. No cellular service or SMS API is required on the Raspberry Pi.
+
+The iPhone provides the actual iMessage connection while the Dumb Phone 2 receives the messages through OpenBubbles.
