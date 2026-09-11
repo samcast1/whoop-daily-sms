@@ -6,19 +6,6 @@ from app.service import get_morning, get_evening
 
 app = FastAPI(title="WHOOP API")
 
-API_TOKEN = os.environ["WHOOP_API_TOKEN"]
-
-
-def authenticate(authorization: str | None):
-    expected = f"Bearer {API_TOKEN}"
-
-    if authorization != expected:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized",
-        )
-
-
 @app.get("/health")
 def health():
     return {"status": "ok"}
