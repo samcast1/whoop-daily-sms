@@ -2,7 +2,7 @@ import os
 
 from fastapi import FastAPI, Header, HTTPException
 
-from app.service import get_morning, get_evening
+from app.service import get_morning_poll, get_evening
 
 app = FastAPI(title="WHOOP API")
 
@@ -15,7 +15,7 @@ def health():
 def morning():
     return {
         "success": True,
-        "message": get_morning(),
+        "message": get_morning_poll(),
     }
 
 

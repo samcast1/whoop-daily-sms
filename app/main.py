@@ -2,7 +2,7 @@ import logging
 import sys
 
 from app.pushcut_client import PushcutClient
-from app.service import get_morning, get_evening
+from app.service import get_morning_push, get_evening
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,7 +35,7 @@ def main():
     job = sys.argv[1]
 
     if job == "morning":
-        deliver_message(get_morning(), "Morning")
+        deliver_message(get_morning_push(), "Morning")
 
     elif job == "evening":
         deliver_message(get_evening(), "Evening")

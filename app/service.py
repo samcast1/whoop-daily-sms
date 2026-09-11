@@ -30,7 +30,7 @@ def get_ready_data(whoop):
     return None
 
 
-def get_morning():
+def get_morning_push():
     whoop = WhoopClient()
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
@@ -61,6 +61,20 @@ def get_morning():
 
     raise RuntimeError("WHOOP data still not ready after one hour")
 
+
+def get_morning_poll():
+    whoop = WhoopClient()
+    data = get_ready_data(whoop)
+    if data:
+        cycle, sleep, recovery = data
+
+        return format_whoop_sms(
+            cycle,
+            sleep,
+            recovery,
+        )
+    else:
+        return "Data unavailable. Try again later."
 
 def get_evening():
     whoop = WhoopClient()
