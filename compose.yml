@@ -1,4 +1,5 @@
 services:
+
   whoop-daily-sms:
     build: .
     env_file:
@@ -6,3 +7,25 @@ services:
     volumes:
       - ./data:/app/data
     entrypoint: ["python", "-m", "app.main"]
+    networks:
+      - automation
+
+  whoop-api:
+    build: .
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    command:
+      - uvicorn
+      - app.api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    networks:
+      - automation
+
+networks:
+  automation:
+    external: true
