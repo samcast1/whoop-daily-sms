@@ -25,24 +25,16 @@ def health():
 
 
 @app.post("/morning")
-def morning(authorization: str | None = Header(default=None)):
-    authenticate(authorization)
-
-    message = get_morning()
-
+def morning():
     return {
         "success": True,
-        "message": message,
+        "message": get_morning(),
     }
 
 
 @app.post("/evening")
-def evening(authorization: str | None = Header(default=None)):
-    authenticate(authorization)
-
-    message = get_evening()
-
+def evening():
     return {
         "success": True,
-        "message": message,
+        "message": get_evening(),
     }
